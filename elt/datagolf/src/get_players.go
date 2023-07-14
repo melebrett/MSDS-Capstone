@@ -1,19 +1,13 @@
 package main
 
 import (
-	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"net/http"
 	"os"
 
-	"cloud.google.com/go/cloudsqlconn"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/stdlib"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
@@ -26,11 +20,9 @@ type Player struct {
 	PlayerName  string `json:"player_name"`
 }
 
-const url = "https://feeds.datagolf.com/get-player-list?file_format=json&key="
-
 var players []Player
 
-func GetAPIrequest(url string) []Player {
+func GetRequestPlayers(url string) []Player {
 
 	resp, err := http.Get(url)
 	if err != nil {
@@ -48,10 +40,9 @@ func GetAPIrequest(url string) []Player {
 		log.Fatal(err)
 	}
 
-	fmt.Println("Response Body:", string(body))
-
 	if err := json.Unmarshal(body, &players); err != nil {
 		fmt.Println("Error decoding JSON: ", err)
+		fmt.Println("Response Body:", string(body))
 	}
 
 	return players
@@ -69,47 +60,7 @@ func SavePlayersJSON(filename string) {
 	}
 }
 
-// connect to posgres database
-func DbConnect() (*sql.DB, error) {
-	mustGetenv := func(k string) string {
-		v := os.Getenv(k)
-		if v == "" {
-			log.Fatalf("Fatal Error in connect_connector.go: %s environment variable not set.\n", k)
-		}
-		return v
-	}
-
-	var (
-		dbUser                 = mustGetenv("USER")     // e.g. 'my-db-user'
-		dbPwd                  = mustGetenv("PWD")      // e.g. 'my-db-password'
-		dbName                 = mustGetenv("DB")       // e.g. 'my-database'
-		instanceConnectionName = mustGetenv("INSTANCE") // e.g. 'project:region:instance'
-	)
-
-	dsn := fmt.Sprintf("user=%s password=%s database=%s", dbUser, dbPwd, dbName)
-	config, err := pgx.ParseConfig(dsn)
-	if err != nil {
-		return nil, err
-	}
-	var opts []cloudsqlconn.Option
-	d, err := cloudsqlconn.NewDialer(context.Background(), opts...)
-	if err != nil {
-		return nil, err
-	}
-	// Use the Cloud SQL connector to handle connecting to the instance.
-	// This approach does *NOT* require the Cloud SQL proxy.
-	config.DialFunc = func(ctx context.Context, network, instance string) (net.Conn, error) {
-		return d.Dial(ctx, instanceConnectionName)
-	}
-	dbURI := stdlib.RegisterConnConfig(config)
-	dbPool, err := sql.Open("pgx", dbURI)
-	if err != nil {
-		return nil, fmt.Errorf("sql.Open: %v", err)
-	}
-	return dbPool, nil
-}
-
-func RefreshTable() {
+func RefreshPlayerTable() {
 	db, err := DbConnect()
 	if err != nil {
 		log.Fatal(err)
@@ -138,7 +89,7 @@ func RefreshTable() {
 	}
 }
 
-func WriteTable(Players []Player) {
+func WritePlayerTable(Players []Player) {
 	db, err := DbConnect()
 	if err != nil {
 		log.Fatal(err)
@@ -161,6 +112,8 @@ func WriteTable(Players []Player) {
 
 func LoadPlayers() {
 
+	var url = "https://feeds.datagolf.com/get-player-list?file_format=json&key="
+
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatal("Error loading .env file")
@@ -171,17 +124,15 @@ func LoadPlayers() {
 	// paste the url and api key
 	full_url := url + API_KEY
 
-	fmt.Println("calling API")
-	GetAPIrequest(full_url)
+	fmt.Println("calling players endpoint")
+	GetRequestPlayers(full_url)
 
 	// SavePlayersJSON("players.json")
 
-	fmt.Println("refreshing table")
-	RefreshTable()
+	fmt.Println("refreshing player table")
+	RefreshPlayerTable()
 
-	fmt.Println("writing table")
-	WriteTable(players)
-
-	// fmt.Println(players)
+	fmt.Println("writing player table")
+	WritePlayerTable(players)
 
 }
