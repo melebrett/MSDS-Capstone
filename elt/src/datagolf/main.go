@@ -13,4 +13,7 @@ func main() {
 	// run the LoadScores function from load_scores.go
 	LoadScores(events)
 
+	// run the LoadRankings function from load_rankings.go (refresh table set to false)
+	LoadRankings(false)
+
 }
