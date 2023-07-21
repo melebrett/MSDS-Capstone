@@ -58,8 +58,6 @@ type ScoreResponse struct {
 	CalendarYear        int         `json:"year"`
 }
 
-var AllScores []ScoreResponse
-
 type PlayerRoundScore struct {
 	Tour        string
 	Year        int
@@ -92,8 +90,6 @@ type PlayerRoundScore struct {
 	PoorShots   int
 }
 
-// var PlayerRoundScores []PlayerRoundScore
-
 // loop through the event struct and call the API for each event
 func GetRequestScores(url string, key string, events []Event) []ScoreResponse {
 
@@ -101,20 +97,27 @@ func GetRequestScores(url string, key string, events []Event) []ScoreResponse {
 	var tour string
 	var calendar_year string
 	var full_url string
-	var this_event ScoreResponse
+	var AllScores []ScoreResponse
 
 	// counter := 0
 	for _, v := range events {
 
 		// only get PGA and KFT events
 		if v.Tour == "pga" || v.Tour == "kft" {
+			// if v.Tour == "pga" && v.EventId == 33 {
+
+			this_event := ScoreResponse{}
 
 			// convert the event value to a string
 			event_id = strconv.Itoa(v.EventId)
 			tour = v.Tour
 			calendar_year = strconv.Itoa(v.CalendarYear)
 
+			// fmt.Printf("Getting scores for %s %s %s\n", tour, event_id, calendar_year)
+
 			full_url = url + tour + "&event_id=" + event_id + "&year=" + calendar_year + "&file_format=json&key=" + key
+
+			// fmt.Println(full_url)
 
 			resp, err := http.Get(full_url)
 			if err != nil {
@@ -140,9 +143,9 @@ func GetRequestScores(url string, key string, events []Event) []ScoreResponse {
 
 			AllScores = append(AllScores, this_event)
 
-			// break the loop for testing
+			// // break the loop for testing
 			// counter++
-			// if counter > 1 {
+			// if counter > 2 {
 			// 	break
 			// }
 
@@ -172,6 +175,8 @@ func FlattenScores(scores []ScoreResponse) []PlayerRoundScore {
 		tour = v.Tour
 		event_id = v.EventID
 
+		// fmt.Printf("season %d, year %d, tour %s, event_id %s\n", season, year, tour, event_id)
+
 		for _, s := range v.Scores {
 
 			// extract player info
@@ -179,6 +184,13 @@ func FlattenScores(scores []ScoreResponse) []PlayerRoundScore {
 			fin_text = s.FinText
 			player_name = s.PlayerName
 
+			// TESTING: if not Thomas, Justin, skip
+			// if player_name != "Thomas, Justin" {
+			// 	continue
+			// }
+
+			// fmt.Printf("player %s, dg_id %d, fin_text %s\n", s.PlayerName, s.DGID, s.FinText)
+			// fmt.Println(s.Round1)
 			// for round 1, if RoundScore is not empty append his scores to the PlayerRoundScore slice
 			if s.Round1 != (RoundScore{}) {
 
@@ -215,6 +227,8 @@ func FlattenScores(scores []ScoreResponse) []PlayerRoundScore {
 				})
 
 			}
+
+			// fmt.Println(s.Round2)
 			// same thing for round 2
 			if s.Round2 != (RoundScore{}) {
 
@@ -251,6 +265,8 @@ func FlattenScores(scores []ScoreResponse) []PlayerRoundScore {
 				})
 
 			}
+
+			// fmt.Println(s.Round3)
 			if s.Round3 != (RoundScore{}) {
 
 				PlayerRoundScores = append(PlayerRoundScores, PlayerRoundScore{
@@ -286,6 +302,8 @@ func FlattenScores(scores []ScoreResponse) []PlayerRoundScore {
 				})
 
 			}
+
+			// fmt.Println(s.Round4)
 			if s.Round4 != (RoundScore{}) {
 
 				PlayerRoundScores = append(PlayerRoundScores, PlayerRoundScore{
@@ -330,7 +348,7 @@ func FlattenScores(scores []ScoreResponse) []PlayerRoundScore {
 }
 
 // function for saving JSON file for testing - eliminate excessive API calls
-func SaveScoresJSON(filename string) {
+func SaveScoresJSON(filename string, AllScores []ScoreResponse) {
 	content, err := json.Marshal(AllScores)
 	if err != nil {
 		log.Fatalf("Error while marshaling struct: %v", err)
@@ -443,10 +461,10 @@ func LoadScores(events []Event) {
 	url := "https://feeds.datagolf.com/historical-raw-data/rounds?tour="
 
 	fmt.Println("calling scores endpoint")
-	GetRequestScores(url, API_KEY, events)
-	// SaveScoresJSON("scores.json")
+	AllScores := GetRequestScores(url, API_KEY, events)
+	// SaveScoresJSON("scores.json", AllScores)
 
-	// run flatten scores and get the resulting slice
+	// // run flatten scores and get the resulting slice
 	fmt.Println("flattening scores")
 	PlayerRoundScores := FlattenScores(AllScores)
 

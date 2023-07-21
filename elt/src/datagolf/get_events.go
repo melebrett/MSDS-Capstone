@@ -132,13 +132,13 @@ func LoadEvents() {
 	fmt.Println("calling events endpoint")
 	GetRequestEvents(full_url)
 
-	SaveEventsJSON("events.json")
+	// SaveEventsJSON("events.json")
 
 	//write to database
 	fmt.Println("refreshing events table")
 	RefreshEventTable()
 
-	// fmt.Println("writing event table")
+	fmt.Println("writing event table")
 	WriteEventTable(events)
 
 }
