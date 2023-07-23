@@ -6,7 +6,7 @@ import numpy as np
 import warnings
 import utils
 
-def clean_rounds(overwrite = False):
+def clean_rounds(overwrite = True):
     
     conn = utils.db_connect()
 
@@ -21,8 +21,9 @@ def clean_rounds(overwrite = False):
                     left_on= ['event_id','year', 'tour'], right_on=['event_id','calendar_year', 'tour'], how='left')
 
     # clean some stuff up
-    # if has_traditional_stats is 'no', then make the columns null
+    # if has_traditional_stats is 'no', or dist+ gir = 0 then make the columns null
     df.loc[df['has_traditional_stats'] == 'no', ['driving_acc', 'driving_dist', 'gir', 'scrambling', 'prox_rgh', 'prox_fw', 'great_shots', 'poor_shots']] = np.nan
+    df.loc[(df['has_traditional_stats'] != 'no') & (df['driving_dist'] == 0) & (df['gir'] == 0), ['driving_acc', 'driving_dist', 'gir', 'scrambling', 'prox_rgh', 'prox_fw', 'great_shots', 'poor_shots']] = np.nan
     df.loc[df['has_sg'] == 'no', ['sg_putt', 'sg_arg', 'sg_app', 'sg_off_tee', 'sg_t2g', 'sg_total']] = np.nan
     # convert to bool
     df['has_traditional_stats'] = df['has_traditional_stats'] == 'yes'
@@ -89,7 +90,7 @@ def clean_rounds(overwrite = False):
     conn.close()
 
 
-def clean_events(overwrite = False):
+def clean_events(overwrite = True):
 
     conn = utils.db_connect()
 
@@ -98,6 +99,10 @@ def clean_events(overwrite = False):
     df['has_traditional_stats'] = df['has_traditional_stats'] == 'yes'
     df['has_sg'] = df['has_sg'] == 'yes'
     df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
+    # season is calendar year + 1 if month > 8 and calendar_year >= 2013
+    df['season'] = df['date'].dt.year
+    df.loc[(df['date'].dt.month > 8) & (df['date'].dt.year >= 2013), 'season'] = df['season'] + 1
+
 
     drop_statement = """
     DROP TABLE IF EXISTS gold.events;
@@ -131,7 +136,7 @@ def clean_events(overwrite = False):
 
     conn.close()
 
-def clean_players(overwrite = False):
+def clean_players(overwrite = True):
 
     conn = utils.db_connect()
 
@@ -168,7 +173,7 @@ def clean_players(overwrite = False):
 
     conn.close()
 
-def clean_rankings(overwrite = False):
+def clean_rankings(overwrite = True):
     conn = utils.db_connect()
 
     df = pd.read_sql("select * from public.rankings", conn)
@@ -214,7 +219,7 @@ def clean_rankings(overwrite = False):
     
     conn.close()
 
-def clean_earnings(overwrite = False):
+def clean_earnings(overwrite = True):
 
     conn = utils.db_connect()
 
@@ -230,6 +235,8 @@ def clean_earnings(overwrite = False):
     df['Rank'] = df['Rank'].astype(int)
     # rename columns
     df.rename(columns={'Player': 'name', 'Season': 'season', 'Rank': 'rank', 'Money': 'money', 'Tournament': 'event_name'}, inplace=True)
+    # if event name contains 2020, season = 2020
+    df.loc[df['event_name'].str.contains('2020'), 'season'] = 2020
 
     drop_statement = """
     DROP TABLE IF EXISTS gold.winnings;
@@ -261,7 +268,7 @@ def clean_earnings(overwrite = False):
     
     conn.close()
 
-def clean_bio(overwrite = False):
+def clean_bio(overwrite = True):
 
     conn = utils.db_connect()
 
@@ -310,7 +317,7 @@ def clean_bio(overwrite = False):
     conn.close()
 
 
-def clean_stats(overwrite = False):
+def clean_stats(overwrite = True):
 
     conn = utils.db_connect()
 
@@ -415,37 +422,37 @@ def clean_stats(overwrite = False):
 
 def main():
     try:
-        clean_rounds(overwrite=False)
+        clean_rounds(overwrite=True)
     except Exception as ex:
         warnings.warn(f"failed to update rounds: {ex}")
 
     try:
-        clean_events(overwrite=False)
+        clean_events(overwrite=True)
     except Exception as ex:
         warnings.warn(f"failed to update events: {ex}")
 
     try:
-        clean_players(overwrite=False)
+        clean_players(overwrite=True)
     except Exception as ex:
         warnings.warn(f"failed to update players: {ex}")
 
     try:
-        clean_rankings(overwrite=False)
+        clean_rankings(overwrite=True)
     except Exception as ex:
         warnings.warn(f"failed to update rankings: {ex}")
 
     try:
-        clean_earnings(overwrite=False)
+        clean_earnings(overwrite=True)
     except Exception as ex:
         warnings.warn(f"failed to update earnings: {ex}")
 
     try:
-        clean_bio(overwrite=False)
+        clean_bio(overwrite=True)
     except Exception as ex:
         warnings.warn(f"failed to update bio: {ex}")
 
     try:
-        clean_stats(overwrite=False)
+        clean_stats(overwrite=True)
     except Exception as ex:
         warnings.warn(f"failed to update stats: {ex}")
     
