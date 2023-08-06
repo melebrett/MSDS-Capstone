@@ -1,3 +1,8 @@
+# adjust strokes gained in each round (similar to dg model https://datagolf.com/predictive-model-methodology & openWAR https://arxiv.org/abs/1312.7158)
+# - estimate effects of individual golfer, tour and event/round/year
+# - adjusted strokes gained is the residual (with random effects removed) between actual strokes gained and predicted strokes gained
+#   - interpreted as strokes gained relative to average golfer
+
 library(tidyverse)
 library(lubridate)
 library(RPostgreSQL)
@@ -6,24 +11,12 @@ library(odbc)
 library(RODBC)
 library(lme4)
 
-conn <- dbConnect(
-  RPostgres::Postgres(),
-  dbname = Sys.getenv("MSDS_DB"),
-  host = Sys.getenv("MSDS_HOST"),
-  port = 5432,
-  user = Sys.getenv("MSDS_USER"),
-  password = Sys.getenv("MSDS_PWD")
-)
+source("./helpers.R")
 
-rounds <- dbGetQuery(conn, "select * from gold.rounds")
-events <- dbGetQuery(conn, "select calendar_year, date, event_id, tour from gold.events where tour in ('pga','kft')")
-players <- dbGetQuery(
-  conn,
-  "select x.dg_id, x.dg_player_name, b.*
-  from gold.player_bio b
-  left join gold.player_xref x on x.espn_id = b.espn_id
-  where x.dg_id is not null"
-)
+conn <- pg_connect()
+rounds <- get_rounds(conn)
+events <- get_events(conn)
+players <- get_players(conn)
 
 # features
 rounds <- rounds %>% filter(round_score > 0) # remove bad event (zurich match play)
