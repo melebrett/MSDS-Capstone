@@ -1,6 +1,7 @@
 # 1. estimate "latent skill" of golfers within sample
 # - for each year estimate (mean) adjusted strokes gained
 # - standard deviation of random effects from this model to be used in predicting tournament outcomes
+# - residual standard deviation from this model used this to model round by round variance
 # 2. estimate aging curve for skill
 # 3. predict skill in following year using average adjusted strokes gained (latent skill, from [1]) in that year while accounting for aging (from [2]) and recent performance
 
@@ -17,6 +18,7 @@ library(zoo)
 # library(brms)
 
 source("./helpers.R")
+source("./get_data.R")
 
 conn <- pg_connect()
 rounds <- get_rounds(conn)
@@ -25,8 +27,8 @@ events <- get_events(conn)
 players <- get_players(conn)
 dbDisconnect(conn)
 
-rounds <- rounds %>% filter(round_score > 0) # remove bad event (zurich match play)
 rounds <- rounds %>%
+  filter(round_score > 0) %>% # remove bad event (zurich match play)
   left_join(events, by = c("event_id", "year" = "calendar_year", "tour")) %>% 
   mutate(
     event_year = paste(year, event_id, sep = "_"),

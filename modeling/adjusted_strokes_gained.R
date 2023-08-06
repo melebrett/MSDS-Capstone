@@ -12,6 +12,7 @@ library(RODBC)
 library(lme4)
 
 source("./helpers.R")
+source("./get_data.R")
 
 conn <- pg_connect()
 rounds <- get_rounds(conn)
