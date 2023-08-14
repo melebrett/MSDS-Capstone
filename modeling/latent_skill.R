@@ -55,14 +55,66 @@ rounds <- rounds %>%
   ) %>%
   ungroup()
 
+
 train <- rounds %>% filter(year < 2022)
 test <- rounds %>% filter(year == 2022)
 
-# (1) Golfer Skill Estimates (within sample)
+# (1a) Golfer Skill Estimates (within sample)
 mod_ls <- lmer(
-  data = train,
-  adj_sg_total ~ bs(age) + (1 | dg_id)
+  data = train %>%
+    group_by(dg_id) %>%
+    mutate(
+      day = lubridate::time_length(interval(date, max(date)), unit ="days")
+    ) %>%
+    ungroup(),
+  adj_sg_total ~ (1 + ns(day, df = 4) | dg_id),
+  control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 5000))
 )
+
+summary(mod_ls)
+
+rahm <- train %>%
+  group_by(dg_id) %>%
+  mutate(
+    day = lubridate::time_length(interval(date, max(date)), unit ="days"),
+  ) %>%
+  filter(dg_id == 19195)
+
+rahm$pred <- predict(mod_ls, rahm)
+
+ggplot(rahm) + geom_line(aes(x=day, y = pred) , color = "red") + geom_point(aes(x = day, y = adj_sg_total))
+# geom_line(aes(x=day, y = pred2), color = "blue")
+
+# 1b Aging Curve
+mod_ls_ac1 <- lmer(
+  data = train,
+  adj_sg_total ~ ns(age, df = 4) + (1| dg_id)
+)
+
+mod_ls_ac2 <- lmer(
+  data = train,
+  adj_sg_total ~ bs(age, df = 4) + (1| dg_id)
+)
+
+summary(mod_ls_ac1)
+summary(mod_ls_ac2)
+
+AIC(mod_ls_ac1, mod_ls_ac2)
+
+homa <- tibble(dg_id = c(17538)) %>%
+  crossing(age = seq(20, 60, by = 0.1))
+
+homa$pred1 <- predict(mod_ls_ac1, homa, re.form = NA)
+homa$pred2 <- predict(mod_ls_ac2, homa, re.form = NA)
+homa$pred3 <- predict(mod_ls_ac3, homa, re.form = NA)
+
+ggplot(homa) + geom_line(aes(x=age, y = pred1), color = 'red') +
+  geom_line(aes(x=age, y = pred2), color = 'blue') +
+  geom_line(aes(x=age, y = pred3), color = 'green')
+
+ggplot() + 
+  geom_point(data = train %>% filter(year == 2021), aes(x = age, y = adj_sg_total)) +
+  geom_line(data = homa, aes(x=age, y=pred2), color = 'red')
 
 # use conditional variance to create sampling distributions from for future years
 #ranefs <- ranef(mod_ls, condVar = TRUE)
@@ -106,13 +158,26 @@ mod_ls <- lmer(
 # ggplot(data = train_sum %>% filter(rounds > 10)) + geom_point(aes(x=act,y = pred, size = rounds), color = "red") + geom_abline()
 # ggplot(data = test_sum %>% filter(rounds > 10)) + geom_point(aes(x=act,y = pred, size = rounds), color = "red") + geom_abline()
 
-# final model (to use on new data)
+# final models (to use on new data)
 mod_ls_final <- lmer(
-  data = bind_rows(train, test),
-  adj_sg_total ~ bs(age) + (1 | dg_id)
+  data = bind_rows(train, test) %>%
+    group_by(dg_id) %>%
+    mutate(
+      day = lubridate::time_length(interval(date, max(date)), unit ="days")
+    ) %>%
+    ungroup(),
+  adj_sg_total ~ (1 + ns(day, df = 4) | dg_id),
+  control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 5000))
 )
 
 saveRDS(mod_ls_final, "models/latent_skill.rds")
+
+mod_ls_ac_final <- lmer(
+  data = bind_rows(train, test),
+  adj_sg_total ~ ns(age, df = 4) + (1| dg_id)
+)
+
+saveRDS(mod_ls_ac_final, "models/aging_curve.rds")
 
 # (2) future latent skill
 # should have some rtm here
@@ -131,6 +196,14 @@ normalize <- function(x, na.rm = TRUE) {
 
 
 prep_df <- function(df){
+  
+  df <- df %>%
+    group_by(dg_id) %>%
+    mutate(
+      day = lubridate::time_length(interval(date, max(date)), unit ="days")
+    ) %>%
+    ungroup()
+    
   
   df$latent_skill <- predict(mod_ls_final, df, allow.new.levels = T)
   
@@ -206,7 +279,7 @@ prep_df <- function(df){
 # a. model residual based on recent performance
 # - how much will skill change from this baseline based on recent performance
 # - & use the original model with aging curve to predict future year
-model_df <- prep_df(train)
+# model_df <- prep_df(train)
 
 # mod_ls_resid <- lm(
 #   data = model_df,
@@ -216,6 +289,8 @@ model_df <- prep_df(train)
 # summary(mod_ls_resid)
 
 # b. model actual adjusted sg based on recent performance and average skill estimate within season
+model_df <- prep_df(train)
+
 # add aging effect
 age <- rounds %>%
   group_by(dg_id, year, birthdate) %>%
@@ -228,20 +303,52 @@ age <- rounds %>%
     age_next = ifelse(imp_age == 1, age, age + 1)
   )
 
-age$delta_ls <- predict(mod_ls_final,age %>% dplyr::select(age = age_next), re.form = NA) - predict(mod_ls_final,age %>% dplyr::select(age), re.form = NA)
+age$delta_ls <- predict(mod_ls_ac_final,age %>% dplyr::select(age = age_next), re.form = NA) - predict(mod_ls_ac_final,age %>% dplyr::select(age), re.form = NA)
 
 model_df <- model_df %>%
   left_join(age %>% distinct(dg_id, year, delta_ls)) %>%
   mutate(mean_latent_skill = mean_latent_skill + delta_ls)
 
 # train
-mod_ls_next <- lm(
+# lm
+mod_ls_next1 <- lm(
   data = model_df,
   mean_adj_sg_next ~ mean_latent_skill + ma_1 + ma_2 + ma_3,
   weights = rounds
 )
 
-summary(mod_ls_next)
+summary(mod_ls_next1)
+
+# gams
+mod_ls_next2 <- mgcv::gam(
+  data = model_df,
+  mean_adj_sg_next ~ s(mean_latent_skill) + ma_1 + ma_2 + ma_3,
+  weights = rounds
+)
+
+summary(mod_ls_next2)
+gam.check(mod_ls_next2)
+plot(mod_ls_next2)
+
+mod_ls_next3 <- mgcv::gam(
+  data = model_df,
+  mean_adj_sg_next ~ s(mean_latent_skill, ma_3) + ma_1 + ma_2,
+  weights = rounds
+)
+
+summary(mod_ls_next3)
+gam.check(mod_ls_next3)
+plot(mod_ls_next3)
+
+mod_ls_next4 <- mgcv::gam(
+  data = model_df,
+  mean_adj_sg_next ~ s(mean_latent_skill, ma_3) + ma_2,
+  weights = rounds
+)
+
+summary(mod_ls_next4)
+gam.check(mod_ls_next4)
+plot(mod_ls_next4)
 
 # test
 # need this to make sure moving avgs are correct
@@ -256,33 +363,40 @@ model_df_test <- model_df %>%
   filter(year == 2021)
 
 # make prediction
-model_df_test$pred <- predict(mod_ls_next, model_df_test)
+model_df_test$pred1 <- predict(mod_ls_next1, model_df_test)
+model_df_test$pred2 <- predict(mod_ls_next2, model_df_test)
+model_df_test$pred3 <- predict(mod_ls_next3, model_df_test)
+model_df_test$pred4 <- predict(mod_ls_next4, model_df_test)
 
 # r2
-cor(model_df_test$mean_adj_sg_next, model_df_test$pred)**2
+cor(model_df_test$mean_adj_sg_next, model_df_test$pred1)**2
+cor(model_df_test$mean_adj_sg_next, model_df_test$pred2)**2
+cor(model_df_test$mean_adj_sg_next, model_df_test$pred3)**2
+cor(model_df_test$mean_adj_sg_next, model_df_test$pred4)**2
+
+model_df_test %>%
+  summarise(
+    rmse1 = sqrt(mean((mean_adj_sg_next - pred1)**2)),
+    rmse2 = sqrt(mean((mean_adj_sg_next - pred2)**2)),
+    rmse3 = sqrt(mean((mean_adj_sg_next - pred3)**2)),
+    rmse4 = sqrt(mean((mean_adj_sg_next - pred4)**2))
+  )
 
 
-# final models
+# final models on full dataset
+
 # mod_ls_resid_final <- lm(
 #   data = model_df,
 #   resid_skill_next ~ resid_skill + diff_1 + diff_2 + diff_3,
 # )
 
-mod_ls_next_final <- lm(
+mod_ls_next_final <- mgcv::gam(
   data = model_df,
-  mean_adj_sg_next ~ mean_latent_skill + ma_1 + ma_2 + ma_3,
+  mean_adj_sg_next ~ s(mean_latent_skill, ma_3) + ma_2,
   weights = rounds
 )
 
 
 # saveRDS(mod_ls_resid_final, "models/latent_skill_residual.rds")
 saveRDS(mod_ls_next_final, "models/latent_skill_next.rds")
-
-# Next steps:
-# then aging curves for:
-# - other skills
-# - model to adjust baseline for changes in other skills
-
-# then:
-# work on tournament predictions
 

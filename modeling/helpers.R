@@ -11,3 +11,37 @@ calculate_ma <- function(data, time_window){
          ma = as.numeric(results))
 }
 
+get_mas <- function(rounds_df){
+  
+  mas <- rounds_df %>%
+    group_by(dg_id) %>%
+    arrange(date) %>%
+    nest() %>%
+    mutate(
+      ma_1 = purrr::map(data, ~calculate_ma(.,15)),
+      ma_2 = purrr::map(data, ~calculate_ma(.,30)),
+      ma_3 = purrr::map(data, ~calculate_ma(.,60))
+    ) %>%
+    dplyr::select(dg_id, starts_with('ma')) %>%
+    unnest(c(ma_1, ma_2, ma_3), names_sep = "_") %>%
+    dplyr::select(
+      dg_id, date = ma_1_date, ma_1 = ma_1_ma, ma_2 = ma_2_ma, ma_3 = ma_3_ma
+    )
+  
+  return(mas)
+}
+
+
+predict_ls <- function(model, rounds_df){
+  
+  predict(
+    model,
+    rounds_df %>%
+      group_by(dg_id) %>%
+      mutate(
+        day = lubridate::time_length(interval(date, max(date)), unit ="days")
+      ) %>%
+      ungroup()
+  )
+  
+}

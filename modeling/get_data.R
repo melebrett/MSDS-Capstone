@@ -1,5 +1,4 @@
 # helper functions to load data
-
 pg_connect <- function(){
   
   conn <- dbConnect(
@@ -34,3 +33,36 @@ where x.dg_id is not null"
   )
 }
 
+get_winnings <- function(conn){
+  dbGetQuery(conn,
+             "select w.*
+, x.dg_event_id, x.dg_event_name, x.calendar_year
+from gold.winnings w
+left join gold.event_xref x on x.pga_event_name = w.event_name and x.pga_season = w.season"
+             )
+}
+
+get_primary_tour <- function(conn){
+  
+  get_rounds(conn) %>%
+    mutate(
+      tour = ifelse(str_detect(event_name, "Puerto Rico|Barracuda|Barbasol|Corales"), 'kft',tour) # alternate pga events, don't count
+    ) %>%
+    group_by(dg_id, year) %>%
+    summarise(
+      pga = mean(ifelse(tour == 'pga',1,0))
+    ) %>%
+    mutate(
+      primary_tour = ifelse(pga > 0.67, 'pga', 'kft')
+    )
+  
+}
+
+get_projections <- function(conn){
+  dbGetQuery(conn,"select * from gold.skill_projections")
+}
+
+
+get_major_qualifiers <- function(conn){
+  dbGetQuery(conn, "select * from gold.major_qualifiers")
+}
