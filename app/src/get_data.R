@@ -12,16 +12,43 @@ pg_connect <- function(){
   
 }
 
-get_rounds <- function(conn){
-  dbGetQuery(conn, "select * from gold.rounds")
+get_earnings <- function(conn, expected = F){
+  if(expected == F){
+    dbGetQuery(conn, "select * from gold.earnings")
+  }else{
+    dbGetQuery(conn, "select * from gold.earnings_expected")
+  }
 }
 
-get_adj_sg <- function(conn){
-  dbGetQuery(conn, "select * from gold.adjusted_strokes_gained")
+get_rankings <- function(conn){
+  dbGetQuery(conn, "select * from gold.rankings")
 }
 
 get_events <- function(conn){
   dbGetQuery(conn, "select calendar_year, date, event_id, tour from gold.events where tour in ('pga','kft')")
+}
+
+get_rounds <- function(conn){
+  
+  events <- get_events(conn)
+  
+  dbGetQuery(conn, "select * from gold.rounds") %>%
+    left_join(events, by = c("event_id", "year" = "calendar_year", "tour")) %>% 
+    mutate(
+      start_date = date,
+      event_year = paste(year, event_id, sep = "_"),
+      round_score_ou = round_score - course_par,
+      across(c(starts_with('sg_')), ~.*-1),
+      date = date + (round_num - 1)
+    )
+}
+
+get_adj_sg <- function(conn, components = F){
+  if(components== T){
+    dbGetQuery(conn, "select * from gold.adjusted_strokes_gained_components")
+  }else{
+    dbGetQuery(conn, "select * from gold.adjusted_strokes_gained")
+  }
 }
 
 get_players <- function(conn){
@@ -58,11 +85,22 @@ get_primary_tour <- function(conn){
   
 }
 
-get_projections <- function(conn){
-  dbGetQuery(conn,"select * from gold.skill_projections")
-}
-
-
 get_major_qualifiers <- function(conn){
   dbGetQuery(conn, "select * from gold.major_qualifiers")
 }
+
+get_projections <- function(conn, type = "skill"){
+  
+  if(type == 'skill'){
+    dbGetQuery(conn,"select * from gold.skill_projections")
+  }else if(type == 'majors'){
+    dbGetQuery(conn, "select * from gold.major_projections")
+  }else if(type == 'earnings'){
+    dbGetQuery(conn, "select * from gold.earnings_projections")
+  }else{
+    stop(str_glue("invalid projection type: {type}"))
+  }
+  
+}
+
+

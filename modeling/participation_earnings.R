@@ -447,6 +447,7 @@ model_df <- years %>%
 train <- model_df %>% filter(year <= target_year - 2)
 test <- model_df %>% filter(year == target_year - 1)
 
+# using the tweedie distribution https://stat.ethz.ch/R-manual/R-devel/library/mgcv/html/Tweedie.html, https://www.statisticshowto.com/tweedie-distribution/
 mod_earnings <- mgcv::gam(
   data = train,
   total_money_real ~ bs(mean_latent_skill) + sd_latent_skill + age,
@@ -480,7 +481,6 @@ mod_earnings_final <- mgcv::gam(
 )
 
 summary(mod_earnings_final)
-
 saveRDS(mod_earnings_final, "models/earnings.rds")
 
 # write out historical earnings
@@ -504,3 +504,60 @@ dbWriteTable(
 )
 dbDisconnect(conn)
 
+# historical expected earnings
+df <- bind_rows(train, test)
+df$pred_earnings <- predict(mod_earnings_final, df, type  ='response')
+df$pred_earnings <- as.numeric(df$pred_earnings)
+
+season_pools <- money %>%
+  distinct(
+    year = season, season_pool 
+  )
+
+pool_infl <- season_pools %>%
+  filter(year != 2020 & year != target_year) %>%
+  arrange(year) %>%
+  mutate(
+    infl = season_pool/lag(season_pool)
+  ) %>%
+  summarise(
+    infl = mean(infl, na.rm= T)
+  ) %>%
+  pull(infl)
+
+pool_infl <- ((pool_infl-1)*0.75)
+base_year <-  target_year - 5
+
+expected_earnings <- df %>%
+  left_join(season_pools) %>%
+  mutate(
+    base_pool = base_pool,
+    pred_earnings_real = pred_earnings,
+    pred_earnings = pred_earnings*(season_pool/base_pool),
+    infl = ifelse(year - base_year >= 0, (1+(year - base_year)*pool_infl),(1-abs(year - base_year)*pool_infl)),
+    pred_earnings = pred_earnings*infl,
+    season_pool = season_pool*infl
+  ) %>%
+  group_by(year) %>%
+  mutate(
+    pred_earnings = (pred_earnings/sum(pred_earnings))*season_pool,
+    pred_earnings_real = (pred_earnings_real/sum(pred_earnings_real))*base_pool,
+    pred_earnings_pct = pred_earnings/season_pool,
+    pred_earnings_real_pct = pred_earnings_real/base_pool
+  ) %>%
+  arrange(year, -pred_earnings)
+
+conn <- pg_connect()
+dbWriteTable(
+  conn,
+  SQL("gold.earnings_expected"),
+  expected_earnings %>%
+    dplyr::select(dg_id, year, pred_earnings, base_pool, season_pool, pred_earnings_real, pred_earnings_pct, pred_earnings_real_pct) %>%
+    mutate(
+      last_updated = lubridate::now()
+      ),
+  append = F,
+  row.names = F,
+  overwrite = T
+)
+dbDisconnect(conn)

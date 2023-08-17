@@ -39,9 +39,11 @@ predict_ls <- function(model, rounds_df){
     rounds_df %>%
       group_by(dg_id) %>%
       mutate(
-        day = lubridate::time_length(interval(date, max(date)), unit ="days")
+        interval = lubridate::interval(date, max(date)),
+        day = lubridate::time_length(interval, unit ="days")
       ) %>%
-      ungroup()
+      ungroup(),
+    allow.new.levels = TRUE
   )
   
 }
