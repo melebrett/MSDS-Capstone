@@ -103,4 +103,24 @@ get_projections <- function(conn, type = "skill"){
   
 }
 
-
+get_major_perf <- function(rounds){
+  rounds %>%
+    distinct(event_id, event_name, year, dg_id, fin_text) %>%
+    filter(str_detect(event_name, "Masters|U.S. Open|Open Championship|PGA Championship")) %>%
+    filter(
+      fin_text %in% as.character(c(1:10)) |
+        fin_text %in% paste("T",c(1:10), sep = "")) %>%
+    mutate(fin = as.integer(str_remove(fin_text, "T")),
+           win = ifelse(fin == 1, 1, 0),
+           t5 = ifelse(fin <= 5, 1, 0),
+           t10 = ifelse(fin <= 10,1,0)
+    ) %>%
+    group_by(
+      dg_id, year
+    ) %>%
+    summarise(
+      major_wins = sum(win),
+      major_t5s = sum(t5),
+      major_t10s = sum(t10)
+    )
+}

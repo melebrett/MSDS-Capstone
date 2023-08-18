@@ -1,5 +1,5 @@
 import pyodbc
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 from azure.identity import AzureCliCredential
 
 from sqlalchemy.engine import URL
@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 import struct
 import os
 
-load_dotenv()
+# load_dotenv()
 
 # get port from environment variable
 PORT = os.getenv("PORT")
