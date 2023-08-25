@@ -15,7 +15,7 @@ Scripts are stored in ./elt/src directory. We utilize containerized microservice
 - espn.com
 - pgatour.com
 
-We utilize Data Golf's id system for players and events. Since we also scrape data from the web, the directory also contains notebooks to map this data to the common id system. This process must be done manually.
+We utilize Data Golf's id system for players and events. Since we also scrape data from the web, the directory contains notebooks to map this data to the common id system. This process must be done manually.
 
 ## Modeling
 
