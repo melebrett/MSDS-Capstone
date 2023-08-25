@@ -82,7 +82,11 @@ rahm <- train %>%
 
 rahm$pred <- predict(mod_ls, rahm)
 
-ggplot(rahm) + geom_line(aes(x=day, y = pred) , color = "red") + geom_point(aes(x = day, y = adj_sg_total))
+ggplot(rahm) + 
+  geom_line(aes(x=day, y = pred) , color = "red") + 
+  geom_point(aes(x = day, y = adj_sg_total)) +
+  theme_bw() +
+  labs(title = "Latent Skill Estimate", subtitle = "John Rahm")
 # geom_line(aes(x=day, y = pred2), color = "blue")
 
 # 1b Aging Curve
@@ -178,6 +182,16 @@ mod_ls_ac_final <- lmer(
 )
 
 saveRDS(mod_ls_ac_final, "models/aging_curve.rds")
+
+
+age_df <- tibble(age = seq(20,60, by = .5))
+age_df$skill <- predict(mod_ls_ac_final, age_df, re.form = NA)
+
+ggplot(age_df) + 
+  geom_line(aes(x=age, y = skill)) +
+  theme_bw() +
+  labs(title = "PGA Aging Curve", y = "Skill (aSG)")
+
 
 # (2) future latent skill
 # should have some rtm here

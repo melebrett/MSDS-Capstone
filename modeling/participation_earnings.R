@@ -174,6 +174,16 @@ mod_attrition_prob <- gam(
 kft_players$promotion_prob <- predict(mod_promotion_prob, kft_players, type = "response")
 pga_players$attrition_prob <- predict(mod_attrition_prob, pga_players, type = "response")
 
+kft_players %>%
+  summarise(
+    accuracy = mean(ifelse(promotion_prob > 0.5, 1, 0) == coalesce(promotion,0), na.rm = T)
+  )
+
+pga_players %>%
+  summarise(
+    accuracy = mean(ifelse(attrition_prob > 0.5, 1, 0) == coalesce(attrition,0), na.rm = T)
+  )
+
 ggplot(kft_players) + geom_point(aes(x=mean_latent_skill, y = promotion_prob, color = age))
 ggplot(pga_players) + geom_point(aes(x=mean_latent_skill, y = attrition_prob, color = age))+ facet_wrap(.~attrition)
 
@@ -428,11 +438,6 @@ money <- money %>%
   )
 
 # projected earnings each of next 3 seasons (present day $)
-money %>%
-  filter(total_money_real > 0) %>%
-  ggplot() +
-  geom_density(aes(x=total_money_real))
-
 model_df <- years %>%
   left_join(
     age
@@ -443,6 +448,25 @@ model_df <- years %>%
   mutate(
     total_money_real = coalesce(total_money_real, 0)
   )
+
+gridExtra::grid.arrange(
+  model_df %>%
+    mutate(won_money = ifelse(total_money_real == 0,'no','yes')) %>%
+    ggplot() +
+    geom_histogram(aes(x=total_money_real, fill = won_money)) +
+    scale_color_manual(aesthetics = "fill", values = c("blue", "red")) +
+    theme_bw() +
+    labs(title = "Real Earnings Distribution 2017-2022", subtitle = "all golfers"),
+  
+  model_df %>%
+    mutate(won_money = ifelse(total_money_real > 0,'yes','no')) %>%
+    filter(won_money == 'yes') %>%
+    ggplot() +
+    geom_density(aes(x=total_money_real), fill = 'red') +
+    theme_bw() +
+    labs(title = "", subtitle = "money winners")
+)
+
 
 train <- model_df %>% filter(year <= target_year - 2)
 test <- model_df %>% filter(year == target_year - 1)
@@ -462,6 +486,9 @@ train_preds <- predict(mod_earnings, type = "response")
 test_preds <- predict(mod_earnings, test, type = "response")
 
 test_preds_norm <- (test_preds/sum(test_preds))*base_pool
+
+cor(test_preds_norm, test$total_money_real)**2
+sqrt(mean((test$total_money_real - test_preds_norm)**2))
 
 ggplot() +
   geom_point(aes(x = train$total_money_real, y=train_preds)) +
