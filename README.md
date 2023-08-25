@@ -60,4 +60,6 @@ The prototype application is located in the ./app directory. It is written using
 
 Documentation can be found in the ./docs directory.
 
+The ./data directory contains a few one-off files. TOUR championship payouts were not available on pgatour.com, where the rest of earnings were scraped, so they were ingested using this file. The other files were used to correct mappings and birthdates.
+
 Each directory contains /dev folders that contain miscellaneous scripts used during development of the project. These can be ignored.
