@@ -11,9 +11,9 @@ App: https://pgaapp-jb4yato7fq-ue.a.run.app/
 
 Scripts are stored in ./elt/src directory. We utilize containerized microservices to ingest data from the following sources:
 
-- datagolf.com
-- espn.com
-- pgatour.com
+- datagolf.com (API)
+- espn.com (web)
+- pgatour.com (web)
 
 We utilize Data Golf's id system for players and events. Since we also scrape data from the web, the directory contains notebooks to map this data to the common id system. This process must be done manually.
 
@@ -60,6 +60,6 @@ The prototype application is located in the ./app directory. It is written using
 
 Documentation can be found in the ./docs directory.
 
-The ./data directory contains a few one-off files. TOUR championship payouts were not available on pgatour.com, where the rest of earnings were scraped, so they were ingested using this file. The other files were used to correct mappings and birthdates.
+The ./data directory contains a few one-off files. TOUR championship payouts were not available on pgatour.com (where the rest of earnings were scraped) so they were ingested using this file. The other files were used to correct mappings and birthdates.
 
 Each directory contains /dev folders that contain miscellaneous scripts used during development of the project. These can be ignored.
