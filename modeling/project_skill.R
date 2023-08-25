@@ -1,4 +1,4 @@
-# forecast skill in each of the next 3 seasons (years)
+# forecast skill in each of the next 5 seasons (years)
 # - include estimates for variance/sd
 
 library(tidyverse)
