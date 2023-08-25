@@ -35,7 +35,7 @@ We build a number of models in order to project skill and tour outcomes. Scripts
 
 `participation_earnings.R`
 
-- build models for: PGA promotion probability, PGA attrition probability, earnings
+- models: PGA promotion probability, PGA attrition probability, earnings
 - outputs: automatic major qualifiers, historical expected/actual earnings
 
 ### Projection Scripts
